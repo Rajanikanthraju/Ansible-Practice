@@ -1,0 +1,39 @@
+- name: MySql installation
+  become: yes
+  hosts: all
+  tasks:
+    - name: Install mysql
+      apt:
+        name: mysql-server
+        update_cache: yes
+    - name: "Install ansible python3 mysql dependency"
+      apt:
+        name: python3-mysqldb
+        state: latest
+    - name: Start service Mysql, if not started
+      ansible.builtin.service:
+        name: mysql
+        state: started
+    - name: update mysql root password for all root accounts  
+      community.mysql.mysql_user:  
+        name: root  
+        host: %
+        password: admin123
+        login_user: root  
+        login_password: admin123 
+        check_implicit_admin: yes  
+        priv: "*.*:ALL,GRANT" 
+        state: present
+    - name: copy the Mysqld.conf file to allow remote conncetions
+      ansible.builtin.copy:
+        src: 'mysqld.cnf'
+        dest: "/etc/mysql/mysql.conf.d/"
+    notify:
+          - daemon reload and enable and started Mysql service
+    handlers:
+      - name: daemon reload and enable and started Mysql service
+        ansible.builtin.systemd:
+          name: 'mysql.service'
+          daemon_reload: yes
+          enabled: yes
+          state: restarted

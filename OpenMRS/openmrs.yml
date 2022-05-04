@@ -1,0 +1,91 @@
+- name: Openmrs Installation
+  become: yes
+  hosts: all
+  vars:
+    - java_package: openjdk-8-jdk
+    - tomcat_download_url: https://archive.apache.org/dist/tomcat/tomcat-7/v7.0.109/bin/apache-tomcat-7.0.109.tar.gz
+    - tomcat_version: 7.0.109
+    - default_shell: /bin/false
+    - tomcat_user_name: tomcat
+    - tomcat_service_location: /etc/systemd/system/tomcat.service
+    - openmrs_file_download_url:  https://sourceforge.net/projects/openmrs/files/releases/OpenMRS_Platform_2.5.4/openmrs.war 
+    - openmrs_deploy_location: /opt/tomcat/webapps
+  tasks:
+    - name: Install OpenJdk8
+      apt:
+        name: "{{ java_package }}"
+        update_cache: yes
+    - name: Create Group Tomcat
+      ansible.builtin.group:
+        name: "{{ tomcat_user_name }}"
+        state: present
+    - name: Add the tomcat user to tomcat group
+      ansible.builtin.user:
+        name: "{{ tomcat_user_name }}"
+        shell: "{{ default_shell }}"
+        group: "{{ tomcat_user_name }}"
+    - name: Download Tomcat Tar File
+      get_url:
+        url: "{{ tomcat_download_url }}"
+        dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+    - name: Create tomcat directory
+      ansible.builtin.file:
+        path: /opt/tomcat
+        state: directory
+    - name: Extracting the Tar file
+      ansible.builtin.unarchive :
+        src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        dest: /opt/tomcat
+        group: "{{ tomcat_user_name }}"
+        owner: "{{ tomcat_user_name }}"
+        extra_opts: [--strip-components=1]
+        remote_src: yes
+    - name: Change file ownership, group and permissions
+      ansible.builtin.file:
+        path: /opt/tomcat/conf
+        mode: '0750'
+        recurse: yes
+    - name: Copy the tomcat service file
+        ansible.builtin.template:
+          src: 'tomcat.service.j2'
+          dest: "{{ tomcat_service_location }}"
+          owner: "{{ tomcat_user_name }}"
+          group: "{{ tomcat_user_name }}"
+    notify:
+          - daemon reload and enable and started tomcat service
+    - name: Start service tomcat, if not started
+      ansible.builtin.service:
+        name: tomcat
+        state: started
+    - name: Create openmrs directory
+      ansible.builtin.file:
+        path: /var/lib/OpenMRS
+        state: directory
+        owner: "{{ tomcat_user_name }}"
+        group: "{{ tomcat_user_name }}"
+        mode: '0755'
+        recurse: yes
+    - name: Download OpenMRS War  File
+      get_url:
+        url: "{{ openmrs_file_download_url }}"
+        dest: /tmp/openmrs.war
+    - name: copy the openmrs war file
+      ansible.builtin.copy:
+        src: /tmp/openmrs.war
+        dest: "{{ openmrs_deploy_location }}"
+    - name: Change file ownership, group and permissions
+      ansible.builtin.file:
+        path: /opt/tomcat/webapps
+        owner: "{{ tomcat_user_name }}"
+        group: "{{ tomcat_user_name }}"
+        mode: '0755'
+        recurse: yes
+    notify:
+          - daemon reload and enable and started tomcat service
+    handlers:
+      - name: daemon reload and enable and started tomcat service
+        ansible.builtin.systemd:
+          name: 'tomcat.service'
+          daemon_reload: yes
+          enabled: yes
+          state: restarted
