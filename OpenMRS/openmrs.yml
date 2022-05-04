@@ -8,6 +8,7 @@
     - default_shell: /bin/false
     - tomcat_user_name: tomcat
     - tomcat_service_location: /etc/systemd/system/tomcat.service
+    - tomcat_home_dir: /opt/tomcat
     - openmrs_file_download_url:  https://sourceforge.net/projects/openmrs/files/releases/OpenMRS_Platform_2.5.4/openmrs.war 
     - openmrs_deploy_location: /opt/tomcat/webapps
   tasks:
@@ -30,19 +31,19 @@
         dest: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
     - name: Create tomcat directory
       ansible.builtin.file:
-        path: /opt/tomcat
+        path: "{{ tomcat_home_dir }}"
         state: directory
     - name: Extracting the Tar file
       ansible.builtin.unarchive :
         src: "/tmp/apache-tomcat-{{ tomcat_version }}.tar.gz"
-        dest: /opt/tomcat
+        dest: "{{ tomcat_home_dir }}"
         group: "{{ tomcat_user_name }}"
         owner: "{{ tomcat_user_name }}"
         extra_opts: [--strip-components=1]
         remote_src: yes
     - name: Change file ownership, group and permissions
       ansible.builtin.file:
-        path: /opt/tomcat/conf
+        path: "{{ tomcat_home_dir }}"/conf
         mode: '0750'
         recurse: yes
     - name: Copy the tomcat service file
@@ -51,7 +52,7 @@
           dest: "{{ tomcat_service_location }}"
           owner: "{{ tomcat_user_name }}"
           group: "{{ tomcat_user_name }}"
-    notify:
+  notify:
           - daemon reload and enable and started tomcat service
     - name: Start service tomcat, if not started
       ansible.builtin.service:
@@ -75,17 +76,17 @@
         dest: "{{ openmrs_deploy_location }}"
     - name: Change file ownership, group and permissions
       ansible.builtin.file:
-        path: /opt/tomcat/webapps
+        path: "{{ tomcat_home_dir }}"/webapps
         owner: "{{ tomcat_user_name }}"
         group: "{{ tomcat_user_name }}"
         mode: '0755'
         recurse: yes
-    notify:
+  notify:
           - daemon reload and enable and started tomcat service
-    handlers:
-      - name: daemon reload and enable and started tomcat service
-        ansible.builtin.systemd:
-          name: 'tomcat.service'
-          daemon_reload: yes
-          enabled: yes
-          state: restarted
+  handlers:
+    - name: daemon reload and enable and started tomcat service
+       ansible.builtin.systemd:
+        name: 'tomcat.service'
+         daemon_reload: yes
+         enabled: yes
+         state: restarted
